@@ -1,0 +1,147 @@
+<project name="Lab4Ivy" default="help" xmlns:ivy="antlib:org.apache.ivy.ant">
+
+    <property file="build.properties"/>
+    <property file="rdbm.properties"/>
+    <property environment="env"/>
+
+    <path id="lib.path">
+        <fileset dir="${lib.dir}"/>
+    </path>
+
+    <!--Apache Ivy Dependency Resolution Tasks, uses http://ant.apache.org/ivy/history/2.4.0/install.html-->
+    <property name="ivy.install.version" value="2.1.0-rc2"/>
+    <condition property="ivy.home" value="${env.IVY_HOME}">
+        <isset property="env.IVY_HOME"/>
+    </condition>
+    <property name="ivy.home" value="${user.home}/.ant"/>
+    <property name="ivy.jar.dir" value="${ivy.home}/lib"/>
+    <property name="ivy.jar.file" value="${ivy.jar.dir}/ivy.jar"/>
+
+    <target name="download-ivy" unless="offline">
+        <echo>"${ivy.jar.dir}"</echo>
+        <mkdir dir="${ivy.jar.dir}"/>
+        <!-- download Ivy from web site so that it can be used even without any special installation -->
+        <get src="https://repo1.maven.org/maven2/org/apache/ivy/ivy/${ivy.install.version}/ivy-${ivy.install.version}.jar"
+             dest="${ivy.jar.file}" usetimestamp="true"/>
+    </target>
+
+    <target name="init-ivy" depends="download-ivy" description="--> downloads and sets up ivy for you">
+        <path id="ivy.lib.path">
+            <fileset dir="${ivy.jar.dir}" includes="*.jar"/>
+        </path>
+        <taskdef resource="org/apache/ivy/ant/antlib.xml"
+                 uri="antlib:org.apache.ivy.ant" classpathref="ivy.lib.path"/>
+    </target>
+
+    <target name="resolve" description="--> retreive dependencies with ivy">
+        <ivy:retrieve/>
+    </target>
+
+    <target name="clean-cache" description="--> clean the ivy cache">
+        <ivy:cleancache/>
+    </target>
+    <!--End Apache Ivy Dependency Resolution Tasks-->
+
+
+    <!--Tomcat Tasks-->
+    <target name="start-tomcat" description="--> start the tomcat server (only for windows)">
+        <exec dir="${tomcat.home}/bin" executable="${tomcat.home}/bin/startup.bat"/>
+    </target>
+
+    <target name="deploy" depends="dist" description="--> deploy to tomcat server webapps">
+        <copy file="${warfile}" todir="${tomcat.home}/webapps" overwrite="yes"/>
+    </target>
+    <!--End Tomcat Tasks-->
+
+    <!--Database Tasks-->
+    <target name="start-db" description="--> start the mysql database (only for windows)">
+        <exec executable="cmd" dir="${sql.bin}" spawn="true">
+            <arg value="/c"/>
+            <arg value="${sql.bin}/${sql.exe}"/>
+        </exec>
+    </target>
+
+    <target name="kill-db" description="--> kill the mysql database daemon (only for windows)">
+        <exec executable="taskkill">
+            <arg line="/im ${sql.exe} /f /t"/>
+        </exec>
+    </target>
+    <!--End Database Tasks-->
+
+    <!-- OS Tasks-->
+    <target name="check-os">
+        <condition property="isWindows">
+            <os family="windows" />
+        </condition>
+
+        <condition property="isUnix">
+            <os family="unix" />
+        </condition>
+    </target>
+    <!-- END OS Tasks-->
+
+    <!-- General Project Tasks-->
+    <target name="help" description="--> display the help menu (a list of targets)">
+        <java classname="org.apache.tools.ant.Main">
+            <arg value="-projecthelp"/>
+            <arg value="-buildfile"/>
+            <arg value="${ant.file}"/>
+        </java>
+    </target>
+
+    <target name="init">
+        <tstamp>
+            <format property="timestamp" pattern="MM.dd.yyyy_hh.mm.aa"/>
+        </tstamp>
+        <mkdir dir="${classes.dir}"/>
+        <mkdir dir="${build.dir}"/>
+        <mkdir dir="${build.dir}/WEB-INF"/>
+    </target>
+
+    <target name="compile" depends="resolve, init" description="--> compile the project">
+        <javac
+                srcdir="${src.dir}"
+                destdir="${classes.dir}"
+                classpathref="lib.path"
+                includeAntRuntime="false"
+                debug="on"
+                debuglevel="lines,vars,source"
+        />
+    </target>
+
+    <target name="build" depends="compile" description="--> build the project">
+        <copy todir="${build.dir}">
+            <fileset dir=".">
+                <include name="README.txt"/>
+            </fileset>
+        </copy>
+        <copy todir="${build.dir}/WEB-INF">
+            <fileset dir=".">
+                <include name="${lib.dir}/**"/>
+                <include name="${classes.dir}/**"/>
+                <include name="booktown.properties"/>
+                <include name="rdbm.properties"/>
+                <include name="web.xml"/>
+            </fileset>
+        </copy>
+    </target>
+
+    <target name="dist" depends="build" description="--> create a distributable war file (for tomcat)">
+        <jar destfile="${warfile}" basedir="${build.dir}"/>
+    </target>
+
+    <target name="backup" depends="init">
+        <mkdir dir="../Lab4-Backups"/>
+        <jar destfile="../Lab4-Backups/Lab4-${timestamp}.zip" basedir="."/>
+    </target>
+
+
+    <target name="clean" depends="backup" description="--> clean the project">
+        <delete file="${warfile}" />
+        <delete dir="${build.dir}"/>
+        <delete dir="${classes.dir}"/>
+    </target>
+
+    <!-- End General Project Tasks-->
+
+</project>
